@@ -2,6 +2,7 @@
 	import { states, lang } from '$lib/Stores';
 	import type { HassEntity } from 'home-assistant-js-websocket';
 	import Icon from '@iconify/svelte';
+	import { openModal } from 'svelte-modals';
 
 	export let sel: any;
 
@@ -18,12 +19,22 @@
 
 	// sensor
 	$: sensor = sel?.sensor && $states?.[sel?.sensor];
+
+	function handleClickHooikoorts() {
+		openModal(() => import('$lib/Popups/Hooikoorts.svelte'));
+	}
 </script>
 
 {#if entity && entity?.state !== 'unavailable'}
 	<div class="container">
 		<div class="icon">
-			<img {src} width="100%" height="100%" alt="" />
+			<button
+				on:click={handleClickHooikoorts}
+				aria-label="Hooikoorts modal"
+				style="background: none; border: none; padding: 0;"
+			>
+				<img {src} width="100%" height="100%" alt="Weather icon" />
+			</button>
 		</div>
 
 		{#if attributes?.temperature}
@@ -99,6 +110,11 @@
 		transform-origin: right;
 		margin-right: 0.4rem;
 		margin-left: 0.1rem;
+	}
+
+	.icon button {
+		width: 100%;
+		height: 100%;
 	}
 
 	.temperature {
