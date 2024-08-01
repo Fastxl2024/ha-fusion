@@ -1,126 +1,151 @@
 <script lang="ts">
-	import { states, selectedLanguage, lang, ripple, connection } from '$lib/Stores';
-	import Modal from '$lib/Modal/Index.svelte';
-	import LightSlider from '$lib/Components/LightSlider.svelte';
-	import ColorPicker from '$lib/Components/ColorPicker.svelte';
-	import ConfigButtons from '$lib/Modal/ConfigButtons.svelte';
-	import Ripple from 'svelte-ripple';
-	import { getName } from '$lib/Utils';
-	import { callService, type HassEntity } from 'home-assistant-js-websocket';
-	import Toggle from '$lib/Components/Toggle.svelte';
-	import { onMount } from 'svelte';
-	import Select from '$lib/Components/Select.svelte';
+import { states, selectedLanguage, lang, ripple, connection } from '$lib/Stores';
+import Modal from '$lib/Modal/Index.svelte';
+import LightSlider from '$lib/Components/LightSlider.svelte';
+import ColorPicker from '$lib/Components/ColorPicker.svelte';
+import ConfigButtons from '$lib/Modal/ConfigButtons.svelte';
+import Ripple from 'svelte-ripple';
+import { getName } from '$lib/Utils';
+import { callService, type HassEntity } from 'home-assistant-js-websocket';
+import Toggle from '$lib/Components/Toggle.svelte';
+import { onMount } from 'svelte';
+import Select from '$lib/Components/Select.svelte';
 
-	export let isOpen: boolean;
-	export let sel: any;
+export let isOpen: boolean;
+export let sel: any;
 
-	let debounce = false;
-	let timeout: ReturnType<typeof setTimeout>;
-	let rangeValue = 0;
+$: entity = $states?.[sel?.entity_id];
+$: attributes = entity?.attributes;
 
-	let groupSel: string | undefined;
-	let groupEntity: HassEntity;
+let debounce = false;
+let timeout: ReturnType<typeof setTimeout>;
+let rangeValue = 0;
 
-	let selTab: string | undefined;
-	let selTabClicked = false;
+let groupSel: string | undefined;
+let groupEntity: HassEntity;
 
-	// https://github.com/home-assistant/frontend/blob/dev/src/data/light.ts
-	enum LightColorMode {
-		UNKNOWN = 'unknown',
-		ONOFF = 'onoff',
-		BRIGHTNESS = 'brightness',
-		COLOR_TEMP = 'color_temp',
-		HS = 'hs',
-		XY = 'xy',
-		RGB = 'rgb',
-		RGBW = 'rgbw',
-		RGBWW = 'rgbww',
-		WHITE = 'white'
+let selTab: string | undefined;
+let selTabClicked = false;
+let selectedEffect: string | undefined = attributes?.effect; // New variable for the selected effect
+
+// https://github.com/home-assistant/frontend/blob/dev/src/data/light.ts
+enum LightColorMode {
+	UNKNOWN = 'unknown',
+	ONOFF = 'onoff',
+	BRIGHTNESS = 'brightness',
+	COLOR_TEMP = 'color_temp',
+	HS = 'hs',
+	XY = 'xy',
+	RGB = 'rgb',
+	RGBW = 'rgbw',
+	RGBWW = 'rgbww',
+	WHITE = 'white'
+}
+
+const modesSupportingColor = [
+	LightColorMode.HS,
+	LightColorMode.XY,
+	LightColorMode.RGB,
+	LightColorMode.RGBW,
+	LightColorMode.RGBWW
+];
+
+const modesSupportingBrightness = [
+	...modesSupportingColor,
+	LightColorMode.COLOR_TEMP,
+	LightColorMode.BRIGHTNESS,
+	LightColorMode.WHITE
+];
+
+
+// make sure it's an array
+$: colorModes = Array.isArray(attributes?.supported_color_modes)
+	? attributes?.supported_color_modes
+	: [attributes?.supported_color_modes].filter(Boolean);
+
+$: colorMode = attributes?.color_mode;
+$: selTab = selTabClicked
+	? selTab
+	: colorMode === 'color_temp' || colorMode === 'white'
+		? colorMode
+		: supports?.COLOR
+			? 'color'
+			: colorMode;
+
+$: toggle = entity?.state === 'on';
+$: current = Math.round(rangeValue / 2.55);
+$: brightness = entity?.attributes?.brightness;
+
+$: supports = {
+	COLOR_MODE: colorModes?.includes(colorMode),
+	COLOR: colorModes?.some((mode: LightColorMode) => modesSupportingColor.includes(mode)),
+	BRIGHTNESS: colorModes?.some((mode: LightColorMode) => modesSupportingBrightness.includes(mode)),
+	EFFECTS: Array.isArray(attributes?.effect_list)
+};
+
+$: effectList = attributes?.effect_list as string[];
+
+onMount(() => {
+	groupEntity = entity;
+	if (groupEntity?.entity_id) {
+		groupSel = $states?.[groupEntity.entity_id]?.entity_id;
 	}
+});
 
-	const modesSupportingColor = [
-		LightColorMode.HS,
-		LightColorMode.XY,
-		LightColorMode.RGB,
-		LightColorMode.RGBW,
-		LightColorMode.RGBWW
-	];
-
-	const modesSupportingBrightness = [
-		...modesSupportingColor,
-		LightColorMode.COLOR_TEMP,
-		LightColorMode.BRIGHTNESS,
-		LightColorMode.WHITE
-	];
-
-	$: entity = $states?.[sel?.entity_id];
-	$: attributes = entity?.attributes;
-
-	// make sure it's an array
-	$: colorModes = Array.isArray(attributes?.supported_color_modes)
-		? attributes?.supported_color_modes
-		: [attributes?.supported_color_modes].filter(Boolean);
-
-	$: colorMode = attributes?.color_mode;
-	$: selTab = selTabClicked
-		? selTab
-		: colorMode === 'color_temp' || colorMode === 'white'
-			? colorMode
-			: supports?.COLOR
-				? 'color'
-				: colorMode;
-
-	$: toggle = entity?.state === 'on';
-	$: current = Math.round(rangeValue / 2.55);
-	$: brightness = entity?.attributes?.brightness;
-
-	$: supports = {
-		COLOR_MODE: colorModes?.includes(colorMode),
-		COLOR: colorModes?.some((mode: LightColorMode) => modesSupportingColor.includes(mode)),
-		BRIGHTNESS: colorModes?.some((mode: LightColorMode) => modesSupportingBrightness.includes(mode))
-	};
-
-	onMount(() => {
-		groupEntity = entity;
-		if (groupEntity?.entity_id) {
-			groupSel = $states?.[groupEntity.entity_id]?.entity_id;
-		}
+/**
+ * Calls light.toggle service
+ */
+function handleClick() {
+	callService($connection, 'light', 'toggle', {
+		entity_id: entity?.entity_id
 	});
+}
 
-	/**
-	 * Calls light.toggle service
-	 */
-	function handleClick() {
-		callService($connection, 'light', 'toggle', {
-			entity_id: entity?.entity_id
+/**
+ * Handle click selTab (color mode)
+ */
+function handleSelTabClick(mode: string) {
+	selTabClicked = true;
+	selTab = mode;
+
+	if (mode === 'white') {
+		callService($connection, 'light', 'turn_on', {
+			entity_id: entity?.entity_id,
+			white: true
 		});
 	}
+}
 
-	/**
-	 * Handle click selTab (color mode)
-	 */
-	function handleSelTabClick(mode: string) {
-		selTabClicked = true;
-		selTab = mode;
+function handleEffectChange(event: CustomEvent<string>) {
+	selectedEffect = event.detail; // Update the selected effect
+	callService($connection, 'light', 'turn_on', {
+		entity_id: entity?.entity_id,
+		effect: selectedEffect
+	});
+}
 
-		if (mode === 'white') {
-			callService($connection, 'light', 'turn_on', {
-				entity_id: entity?.entity_id,
-				white: true
-			});
-		}
-	}
+/**
+ * Formats effect names: starts with a capital letter and replaces underscores with spaces
+ */
+function formatEffectName(effect: string): string {
+	return effect
+		.replace(/_/g, ' ')
+		.replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
-	$: options = [
-		{
-			id: groupEntity?.entity_id,
-			label: groupEntity?.entity_id
-		},
-		...(groupEntity?.attributes?.entity_id?.map((option: string) => ({
-			id: option,
-			label: option
-		})) || [])
-	];
+$: options = [
+	{
+		id: groupEntity?.entity_id,
+		label: groupEntity?.entity_id
+	},
+	...(groupEntity?.attributes?.entity_id?.map((option: string) => ({
+		id: option,
+		label: option
+	})) || [])
+];
+
+
+
 </script>
 
 {#if isOpen}
@@ -142,7 +167,7 @@
 							clearTimeout(timeout);
 							debounce = false;
 							rangeValue = brightness || 0;
-						}}>{getName(undefined, groupEntity)}</button
+						}}>{getName(undefined, groupEntity)}</button>
 					>
 					{#each groupEntity?.attributes?.entity_id as selEntity}
 						<button
@@ -200,51 +225,63 @@
 		{/if}
 
 		<!-- COLOR -->
-		{#if supports?.BRIGHTNESS}
+		{#if supports?.COLOR}
 			<h2>{$lang('change_color')}</h2>
 		{/if}
 
-		{#if colorModes?.length > 1}
-			<div class="button-container">
-				{#if colorModes?.includes('color_temp')}
-					<button
-						class:selected={selTab === 'color_temp'}
-						on:click={() => handleSelTabClick('color_temp')}
-						use:Ripple={$ripple}
-					>
-						{$lang('color_temp')}
-					</button>
-				{/if}
+		{#if supports?.COLOR}
+			{#if colorModes?.length > 1}
+				<div class="button-container">
+					{#if colorModes?.includes('color_temp')}
+						<button
+							class:selected={selTab === 'color_temp'}
+							on:click={() => handleSelTabClick('color_temp')}
+							use:Ripple={$ripple}
+						>
+							{$lang('color_temp')}
+						</button>
+					{/if}
 
-				{#if supports?.COLOR}
-					<button
-						class:selected={selTab === 'color'}
-						on:click={() => handleSelTabClick('color')}
-						use:Ripple={$ripple}
-					>
-						{$lang('color')}
-					</button>
-				{/if}
+					{#if supports?.COLOR}
+						<button
+							class:selected={selTab === 'color'}
+							on:click={() => handleSelTabClick('color')}
+							use:Ripple={$ripple}
+						>
+							{$lang('color')}
+						</button>
+					{/if}
 
-				{#if colorModes?.includes('white')}
-					<button
-						class:selected={selTab === 'white'}
-						on:click={() => handleSelTabClick('white')}
-						use:Ripple={$ripple}
-					>
-						{$lang('set_white')}
-					</button>
-				{/if}
-			</div>
+					{#if colorModes?.includes('white')}
+						<button
+							class:selected={selTab === 'white'}
+							on:click={() => handleSelTabClick('white')}
+							use:Ripple={$ripple}
+						>
+							{$lang('set_white')}
+						</button>
+					{/if}
+				</div>
+			{/if}
+
+			{#if selTab !== 'white'}
+				<ColorPicker
+					{entity}
+					{colorMode}
+					supportedColorModes={colorModes}
+					tempSelected={selTab === 'color_temp'}
+					colorSelected={selTab !== 'color_temp'}
+				/>
+			{/if}
 		{/if}
 
-		{#if supports?.BRIGHTNESS && selTab !== 'white'}
-			<ColorPicker
-				{entity}
-				{colorMode}
-				supportedColorModes={colorModes}
-				tempSelected={selTab === 'color_temp'}
-				colorSelected={selTab !== 'color_temp'}
+		{#if supports?.EFFECTS}
+			<h2>{$lang('effect')}</h2>
+			<Select
+				options={effectList.map(effect => ({ id: effect, label: formatEffectName(effect) }))}
+				value={selectedEffect}
+				placeholder={$lang('select_effect')}
+				on:change={handleEffectChange}
 			/>
 		{/if}
 
