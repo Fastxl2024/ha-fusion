@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { states, lang } from '$lib/Stores';
+	import { states } from '$lib/Stores';
 	import Modal from '$lib/Modal/Index.svelte';
-	import { openModal } from 'svelte-modals';
-	import StateLogic from '$lib/Components/StateLogic.svelte';
-	import ConfigButtons from '$lib/Modal/ConfigButtons.svelte';
-	import { getName } from '$lib/Utils';
-	import Brand_logo from '$lib/Images/Brands/Kleenex_logo.png';
+	import BrandLogo from '$lib/Images/Brands/Kleenex_logo.png';
+	import GrassIcon from '$lib/Images/grass_icon.svg';
+	import TreeIcon from '$lib/Images/tree_icon.svg';
+	import WeedsIcon from '$lib/Images/weeds_icon.svg';
 	import Radial from '$lib/Own_addons/Radial.svelte';
 
 	export let isOpen: boolean;
@@ -13,6 +12,7 @@
 
 	let maxValue: number | undefined = undefined;
 
+	let grassIcon: "$lib/Images/grass_icon.svg";
 	// Reactive statement to get the entity based on selected entity id
 	$: entity = $states[sel?.entity_id];
 
@@ -40,7 +40,7 @@
 {#if isOpen}
 	<Modal>
 		<!-- Kleenex logo in title -->
-		<img slot="title" src={Brand_logo} alt="Kleenex Logo" style="height: 40px;" />
+		<img slot="title" src={BrandLogo} alt="Kleenex Logo" style="height: 40px;" />
 
 		<h1>Pollenradar</h1>
 		<br />
@@ -50,19 +50,19 @@
 				entity_id="sensor.kleenex_pollen_radar_thuis_gras"
 				maxValue={342}
 				name="Grassen"
-				iconUrl="$lib/Images/grass_icon.svg"
+				iconUrl={GrassIcon}
 			></Radial>
 			<Radial
 				entity_id="sensor.kleenex_pollen_radar_thuis_kruiden"
 				maxValue={267}
 				name="Onkruid"
-				iconUrl="$lib/Images/weeds_icon.svg"
+				iconUrl={WeedsIcon}
 			></Radial>
 			<Radial
 				entity_id="sensor.kleenex_pollen_radar_thuis_bomen"
 				maxValue={704}
 				name="Bomen"
-				iconUrl="$lib/Images/tree_icon.svg"
+				iconUrl={TreeIcon}
 			></Radial>
 		</div>
 		<div class="last_update">
